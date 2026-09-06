@@ -26,8 +26,8 @@ as ✅ PASS (with version) or ❌ FAIL (with install instructions).
 node --version
 ```
 
-- **Expected**: v20.0.0 or higher.
-- **Install**: https://nodejs.org/ (LTS recommended).
+- **Expected**: v22.0.0 or higher.
+- **Install**: <https://nodejs.org/> (LTS recommended).
 
 ### 2. npm
 
@@ -35,7 +35,7 @@ node --version
 npm --version
 ```
 
-- **Expected**: v10.0.0 or higher (ships with Node.js 20+).
+- **Expected**: v10.0.0 or higher (ships with Node.js 22+).
 - **Install**: Comes with Node.js. Update with `npm install -g npm`.
 
 ### 3. Git
@@ -45,7 +45,7 @@ git --version
 ```
 
 - **Expected**: Any recent version (2.30+).
-- **Install**: https://git-scm.com/downloads
+- **Install**: <https://git-scm.com/downloads>
 
 ### 4. Project Dependencies
 
@@ -63,7 +63,7 @@ rtk --version
 ```
 
 - **Expected**: v0.40.0 or higher.
-- **Install**: See https://github.com/rtk-ai/rtk for installation via Cargo,
+- **Install**: See <https://github.com/rtk-ai/rtk> for installation via Cargo,
   Homebrew, or prebuilt binary. After installing, run
   `rtk init --agent antigravity` in the project root.
 
@@ -92,7 +92,7 @@ After running all checks, present results in a markdown table:
 ```markdown
 | Tool | Status | Version | Notes |
 | --- | --- | --- | --- |
-| Node.js | ✅ | v20.x.x | — |
+| Node.js | ✅ | v22.x.x | — |
 | npm | ✅ | v10.x.x | — |
 | Git | ✅ | 2.x.x | — |
 | Dependencies | ✅ | — | All installed |

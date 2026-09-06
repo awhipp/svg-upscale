@@ -83,8 +83,8 @@ flowchart LR
 
 ### Prerequisites
 
-* Node.js 20.x or 22.x
-* npm 10.x+
+* Node.js 22+
+* npm 10+
 
 ### Setup
 
