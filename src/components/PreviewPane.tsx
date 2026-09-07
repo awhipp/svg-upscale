@@ -1,15 +1,24 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ZoomIn, ZoomOut, Maximize, RotateCcw, Columns, Image as ImageIcon, Eye, Zap } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, RotateCcw, Columns, Image as ImageIcon, Eye, Zap, Eraser, Wand2 } from 'lucide-react';
 import { ConversionResult } from '../engine/types';
 
 interface PreviewPaneProps {
   result: ConversionResult;
   rasterUrl: string | null;
+  onAddIslandSeed?: (seed: { x: number; y: number }) => void;
+  onClearIslandSeeds?: () => void;
+  islandSeeds?: Array<{ x: number; y: number }>;
 }
 
 type ViewMode = 'vector' | 'raster' | 'split';
 
-export const PreviewPane: React.FC<PreviewPaneProps> = ({ result, rasterUrl }) => {
+export const PreviewPane: React.FC<PreviewPaneProps> = ({
+  result,
+  rasterUrl,
+  onAddIslandSeed,
+  onClearIslandSeeds,
+  islandSeeds = [],
+}) => {
   const [viewMode, setViewMode] = useState<ViewMode>('vector');
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
@@ -18,6 +27,9 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({ result, rasterUrl }) =
   const [splitPos, setSplitPos] = useState(50); // percentage 0..100
   const [rawSvgUrl, setRawSvgUrl] = useState<string>('');
   const [displayVectorUrl, setDisplayVectorUrl] = useState<string>('');
+  const [maskUrl, setMaskUrl] = useState<string>('');
+  const [showMask, setShowMask] = useState<boolean>(false);
+  const [isPickIslandMode, setIsPickIslandMode] = useState<boolean>(false);
   const [forceRawSvg, setForceRawSvg] = useState<boolean>(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -38,18 +50,30 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({ result, rasterUrl }) =
       pUrl = URL.createObjectURL(result.previewBlob);
     }
 
-    // Default to previewBlob for large SVGs to avoid browser lockup
-    if (pUrl && isLarge) {
-      setDisplayVectorUrl(pUrl);
+    let mUrl: string | null = null;
+    if (result.maskBlob) {
+      mUrl = URL.createObjectURL(result.maskBlob);
+      setMaskUrl(mUrl);
     } else {
-      setDisplayVectorUrl(pUrl || rawUrl);
+      setMaskUrl('');
+      setShowMask(false);
+    }
+
+    // Always prefer previewBlob whenever available for silky 60 FPS viewport rendering
+    if (pUrl) {
+      setDisplayVectorUrl(pUrl);
+    } else if (!isLarge) {
+      setDisplayVectorUrl(rawUrl);
+    } else {
+      setDisplayVectorUrl(forceRawSvg ? rawUrl : '');
     }
 
     return () => {
       URL.revokeObjectURL(rawUrl);
       if (pUrl) URL.revokeObjectURL(pUrl);
+      if (mUrl) URL.revokeObjectURL(mUrl);
     };
-  }, [result.svgBlob, result.previewBlob, isLarge]);
+  }, [result.svgBlob, result.previewBlob, result.maskBlob, isLarge, forceRawSvg]);
 
   useEffect(() => {
     return () => {
@@ -96,10 +120,22 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({ result, rasterUrl }) =
 
   // Drag pan pointer down
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (isSplitDraggingRef.current) return;
-    if (e.button !== 0) return; // only left click
+    if (isPickIslandMode) return; // Prevent drag pan in island picker mode
+    if (e.button !== 0) return; // Only left click
     setIsDragging(true);
     setDragStart({ x: e.clientX - translate.x, y: e.clientY - translate.y });
+  };
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPickIslandMode || !onAddIslandSeed) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      const clickX = (e.clientX - rect.left) / rect.width;
+      const clickY = (e.clientY - rect.top) / rect.height;
+      if (clickX >= 0 && clickX <= 1 && clickY >= 0 && clickY <= 1) {
+        onAddIslandSeed({ x: clickX, y: clickY });
+      }
+    }
   };
 
   // Window listeners for smooth pan dragging
@@ -203,6 +239,41 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({ result, rasterUrl }) =
             </>
           )}
 
+          {maskUrl && (
+            <button
+              type="button"
+              className={`btn-toggle ${showMask ? 'active mask-active' : ''}`}
+              onClick={() => setShowMask((prev) => !prev)}
+              title="Highlight pixels removed as background"
+            >
+              <Eraser size={15} />
+              <span>{showMask ? 'Hide Removed Mask' : 'Show Removed Mask'}</span>
+            </button>
+          )}
+
+          {onAddIslandSeed && (
+            <button
+              type="button"
+              className={`btn-toggle ${isPickIslandMode ? 'active wand-active' : ''}`}
+              onClick={() => setIsPickIslandMode((prev) => !prev)}
+              title="Click any background island or letter cavity in the preview to erase it"
+            >
+              <Wand2 size={15} />
+              <span>{isPickIslandMode ? 'Click Island to Erase' : 'Erase Island'}</span>
+            </button>
+          )}
+
+          {islandSeeds.length > 0 && onClearIslandSeeds && (
+            <button
+              type="button"
+              className="btn-ghost-sm"
+              onClick={onClearIslandSeeds}
+              title="Reset all picked islands"
+            >
+              Reset Islands ({islandSeeds.length})
+            </button>
+          )}
+
           {isLarge && result.previewBlob && (
             <button
               type="button"
@@ -239,12 +310,13 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({ result, rasterUrl }) =
 
       <div
         ref={containerRef}
-        className={`preview-viewport ${isDragging ? 'grabbing' : 'grab'}`}
+        className={`preview-viewport ${isPickIslandMode ? 'crosshair' : isDragging ? 'grabbing' : 'grab'}`}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
       >
         <div
-          className="preview-canvas-wrapper"
+          className={`preview-canvas-wrapper ${isPickIslandMode ? 'pick-mode' : ''}`}
+          onClick={handleCanvasClick}
           style={{
             transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
             transformOrigin: 'center center',
@@ -252,15 +324,56 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({ result, rasterUrl }) =
             height: `${h}px`,
           }}
         >
-          {viewMode === 'vector' && activeVectorUrl && (
-            <img
-              src={activeVectorUrl}
-              alt="Vector Output"
-              width={w}
-              height={h}
-              className="render-img pixelated"
-              draggable={false}
-            />
+          {viewMode === 'vector' && (
+            isLarge && !result.previewBlob && !forceRawSvg ? (
+              <div
+                className="dense-vector-placeholder"
+                style={{ width: `${w}px`, height: `${h}px` }}
+              >
+                <div className="dense-vector-card">
+                  <div className="dense-vector-icon-wrap">
+                    <Zap size={28} className="text-sky" />
+                  </div>
+                  <h4 className="dense-vector-title">High-Density Vector Asset</h4>
+                  <p className="dense-vector-meta">
+                    {w} × {h} px • {(result.stats.svgBytes / (1024 * 1024)).toFixed(1)} MB • {result.stats.vectorRuns.toLocaleString()} paths
+                  </p>
+                  <p className="dense-vector-desc">
+                    Direct DOM vector rendering is paused to protect browser responsiveness.
+                    Your vector asset is loaded and ready for lossless download or DPI-specific PNG rasterization.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-ghost-sm"
+                    onClick={() => setForceRawSvg(true)}
+                  >
+                    Force Render Full Vector DOM (May Lag)
+                  </button>
+                </div>
+              </div>
+            ) : activeVectorUrl ? (
+              <>
+                <img
+                  src={activeVectorUrl}
+                  alt="Vector Output"
+                  width={w}
+                  height={h}
+                  className="render-img pixelated"
+                  draggable={false}
+                />
+                {showMask && maskUrl && (
+                  <img
+                    src={maskUrl}
+                    alt="Removed Background Mask"
+                    width={w}
+                    height={h}
+                    className="render-img mask-overlay"
+                    style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
+                    draggable={false}
+                  />
+                )}
+              </>
+            ) : null
           )}
 
           {viewMode === 'raster' && rasterUrl && (
@@ -305,6 +418,17 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({ result, rasterUrl }) =
                   className="render-img pixelated"
                   draggable={false}
                 />
+                {showMask && maskUrl && (
+                  <img
+                    src={maskUrl}
+                    alt="Removed Background Mask"
+                    width={w}
+                    height={h}
+                    className="render-img mask-overlay"
+                    style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
+                    draggable={false}
+                  />
+                )}
                 <span className="split-badge right-badge">Vector SVG</span>
               </div>
 

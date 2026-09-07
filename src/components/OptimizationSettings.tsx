@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sliders, Sparkles, ChevronDown, ChevronUp, RefreshCw, Monitor, Printer, Maximize2 } from 'lucide-react';
+import { Sliders, Sparkles, ChevronDown, ChevronUp, RefreshCw, Monitor, Printer, Maximize2, Eraser } from 'lucide-react';
 import { ConversionOptions, QUALITY_TIERS } from '../engine/types';
 
 interface OptimizationSettingsProps {
@@ -56,6 +56,14 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
             <span className="text-emerald">Strict Lossless (ΔE = 0)</span>
             {' • '}
             {options.resamplingMode === 'pixelated' ? 'Crisp Nearest-Neighbor' : 'Smooth Bilinear'}
+            {options.bgRemoval?.enabled && (
+              <>
+                {' • '}
+                <span className="text-sky font-semibold">
+                  Transparent BG ({options.bgRemoval.mode === 'global' ? 'Global' : 'Contiguous'}, Tol {options.bgRemoval.tolerance ?? 20})
+                </span>
+              </>
+            )}
           </span>
         </div>
 
@@ -227,6 +235,207 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
                 </div>
               </label>
             </div>
+          </div>
+
+          {/* Background & Transparency Removal Section */}
+          <div className="bg-removal-panel">
+            <div className="bg-removal-header">
+              <label className="bg-main-toggle">
+                <input
+                  type="checkbox"
+                  checked={options.bgRemoval?.enabled ?? false}
+                  onChange={(e) => {
+                    const enabled = e.target.checked;
+                    onChange({
+                      ...options,
+                      bgRemoval: {
+                        enabled,
+                        mode: options.bgRemoval?.mode ?? 'flood',
+                        tolerance: options.bgRemoval?.tolerance ?? 20,
+                        targetColor: options.bgRemoval?.targetColor,
+                      },
+                    });
+                  }}
+                />
+                <div className="bg-toggle-info">
+                  <div className="bg-toggle-title">
+                    <Eraser size={16} className="text-sky" />
+                    <strong>Remove Background (Transparent Canvas)</strong>
+                    <span className="pill-badge-sm">Recommended for Logos</span>
+                  </div>
+                  <p className="bg-toggle-desc">
+                    Auto-detects background color and zeroes out alpha (A = 0) prior to vectorization, eliminating background paths and drastically cutting SVG file size.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {options.bgRemoval?.enabled && (
+              <div className="bg-removal-body">
+                {/* Mode Selector */}
+                <div className="bg-sub-row">
+                  <span className="selector-label">Removal Mode:</span>
+                  <div className="bg-mode-grid">
+                    <label className={`resampling-radio ${options.bgRemoval.mode !== 'global' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="bgMode"
+                        checked={options.bgRemoval.mode !== 'global'}
+                        onChange={() =>
+                          onChange({
+                            ...options,
+                            bgRemoval: { ...options.bgRemoval!, mode: 'flood' },
+                          })
+                        }
+                      />
+                      <div>
+                        <strong>Contiguous Border Flood (Safe)</strong>
+                        <span>Traces inwards from borders. Protects enclosed internal cavities inside letters (O, P, A) and logo artwork.</span>
+                      </div>
+                    </label>
+
+                    <label className={`resampling-radio ${options.bgRemoval.mode === 'global' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="bgMode"
+                        checked={options.bgRemoval.mode === 'global'}
+                        onChange={() =>
+                          onChange({
+                            ...options,
+                            bgRemoval: { ...options.bgRemoval!, mode: 'global' },
+                          })
+                        }
+                      />
+                      <div>
+                        <strong>Global Color Match (All Matching)</strong>
+                        <span>Clears matching color everywhere, including inside letter loops and separated graphical shapes.</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Tolerance Slider */}
+                <div className="bg-sub-row">
+                  <div className="tolerance-header">
+                    <span className="selector-label">
+                      Color Tolerance: <span className="highlight-sky font-semibold">{options.bgRemoval.tolerance ?? 20}</span>
+                    </span>
+                    <span className="tolerance-desc">
+                      {(options.bgRemoval.tolerance ?? 20) <= 10
+                        ? 'Strict (flat PNGs with no compression artifacts)'
+                        : (options.bgRemoval.tolerance ?? 20) <= 30
+                        ? 'Balanced (optimal for absorbing JPEG ringing and DCT noise)'
+                        : 'Wide (handles subtle gradients or noisy photographic backdrops)'}
+                    </span>
+                  </div>
+                  <div className="tolerance-control-wrap">
+                    <input
+                      type="range"
+                      min={0}
+                      max={80}
+                      step={1}
+                      value={options.bgRemoval.tolerance ?? 20}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        onChange({
+                          ...options,
+                          bgRemoval: { ...options.bgRemoval!, tolerance: val },
+                        });
+                      }}
+                      className="tolerance-slider"
+                    />
+                    <div className="tolerance-marks">
+                      <span>0 (Exact)</span>
+                      <span>20 (JPEG Default)</span>
+                      <span>50</span>
+                      <span>80 (Aggressive)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Center Islands & Letter Cavities Toggle */}
+                <div className="bg-sub-row">
+                  <label className="toggle-item">
+                    <input
+                      type="checkbox"
+                      checked={options.bgRemoval.clearCenterIslands ?? true}
+                      onChange={(e) =>
+                        onChange({
+                          ...options,
+                          bgRemoval: { ...options.bgRemoval!, clearCenterIslands: e.target.checked },
+                        })
+                      }
+                    />
+                    <div>
+                      <strong>Clear Center Islands &amp; Letter Cavities</strong>
+                      <p>
+                        Automatically floods and clears background pockets and letter loops in the central region while strictly preserving the white logos/text in the 4 outer quadrants.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Edge Defringing (Halo Reduction) */}
+                <div className="bg-sub-row">
+                  <div className="tolerance-header">
+                    <span className="selector-label">
+                      Edge Defringe (Halo Reduction): <span className="highlight-sky font-semibold">{options.bgRemoval.defringe ?? 2} px</span>
+                    </span>
+                    <span className="tolerance-desc">
+                      Chokes the transparent mask inward by 1–2 pixels to eliminate white anti-aliasing fringe along curved borders.
+                    </span>
+                  </div>
+                  <div className="defringe-chips">
+                    {[
+                      { val: 0, label: 'Off (0px)' },
+                      { val: 1, label: '1px (Light)' },
+                      { val: 2, label: '2px (Recommended for JPEGs)' },
+                      { val: 3, label: '3px (Strong)' },
+                    ].map((chip) => {
+                      const isSel = (options.bgRemoval?.defringe ?? 2) === chip.val;
+                      return (
+                        <button
+                          key={chip.val}
+                          type="button"
+                          className={`defringe-chip ${isSel ? 'active' : ''}`}
+                          onClick={() =>
+                            onChange({
+                              ...options,
+                              bgRemoval: { ...options.bgRemoval!, defringe: chip.val },
+                            })
+                          }
+                        >
+                          {chip.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Custom Picked Seeds Status */}
+                {options.bgRemoval.seeds && options.bgRemoval.seeds.length > 0 && (
+                  <div className="bg-sub-row">
+                    <div className="seeds-status-bar">
+                      <span className="seeds-badge">
+                        {options.bgRemoval.seeds.length} custom island{options.bgRemoval.seeds.length > 1 ? 's' : ''} selected in preview
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-ghost-sm"
+                        onClick={() =>
+                          onChange({
+                            ...options,
+                            bgRemoval: { ...options.bgRemoval!, seeds: [] },
+                          })
+                        }
+                      >
+                        Reset Picked Islands
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Engine Optimizations Grid */}

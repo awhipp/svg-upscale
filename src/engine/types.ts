@@ -17,6 +17,16 @@ export interface RLERun {
 
 export type ResamplingMode = 'smooth' | 'pixelated';
 
+export interface BackgroundRemovalOptions {
+  enabled: boolean;
+  mode?: 'flood' | 'global'; // 'flood' = contiguous from borders (default); 'global' = all matching colors
+  tolerance?: number; // 0 to 100, default 20 (handles JPEG compression noise)
+  targetColor?: string; // Optional target hex (#RRGGBB). Auto-detected from corners if omitted.
+  defringe?: number; // 0 to 5 px (chokes mask boundary to eliminate white anti-aliasing halos, default: 2)
+  clearCenterIslands?: boolean; // Automatically clear background islands and letter cavities inside the central region
+  seeds?: Array<{ x: number; y: number }>; // Normalized (0..1) or pixel coordinates of islands to flood and remove
+}
+
 export const QUALITY_TIERS = [
   { id: 'standard', label: 'Standard HD (1280px)', dimension: 1280, category: 'digital', description: 'Recommended default for web & desktop display' },
   { id: 'fullHd', label: 'Full HD (1600px)', dimension: 1600, category: 'digital', description: 'High-res desktop & presentations' },
@@ -35,6 +45,7 @@ export interface ConversionOptions {
   resamplingMode?: ResamplingMode; // 'smooth' (bilinear) or 'pixelated' (nearest neighbor)
   merge2D?: boolean; // Consolidate identical adjacent scanline runs into multi-height rects (default: true)
   pathGrouping?: boolean; // Group same-color shapes into compact <path> elements (default: true)
+  bgRemoval?: BackgroundRemovalOptions; // Optional background removal before vectorization
 }
 
 export interface VectorStats {
@@ -49,6 +60,7 @@ export interface VectorStats {
   rasterBytes: number;
   elementCount?: number;
   resamplingMode?: ResamplingMode;
+  bgRemovedPixels?: number;
 }
 
 export interface ConversionResult {
@@ -56,11 +68,12 @@ export interface ConversionResult {
   svgBlob: Blob;
   stats: VectorStats;
   previewBlob?: Blob;
+  maskBlob?: Blob; // High-contrast visual overlay of removed background
   rasterPreviewUrl?: string;
 }
 
 export interface ConversionProgress {
-  step: 'decoding' | 'compressing' | 'generating' | 'done';
+  step: 'decoding' | 'bg-removal' | 'compressing' | 'generating' | 'done';
   progress: number; // 0 to 100
   message: string;
 }
@@ -87,6 +100,7 @@ export type WorkerOutputMessage =
       svgText: string;
       stats: VectorStats;
       previewBlob?: Blob;
+      maskBlob?: Blob;
     }
   | {
       type: 'ERROR';

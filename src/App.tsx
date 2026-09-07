@@ -4,7 +4,8 @@ import { PreviewPane } from './components/PreviewPane';
 import { StatsDashboard } from './components/StatsDashboard';
 import { Toolbar } from './components/Toolbar';
 import { OptimizationSettings } from './components/OptimizationSettings';
-import { convertRasterToSvg } from './engine';
+import { DpiRasterPanel } from './components/DpiRasterPanel';
+import { convertRasterToSvg, parseSvgDimensions } from './engine';
 import { ConversionOptions, ConversionProgress, ConversionResult } from './engine/types';
 import { ShieldCheck, Sparkles, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -15,6 +16,7 @@ export const App: React.FC = () => {
   const [progress, setProgress] = useState<ConversionProgress | null>(null);
   const [result, setResult] = useState<ConversionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isRasterPanelOpen, setIsRasterPanelOpen] = useState<boolean>(false);
 
   const [options, setOptions] = useState<ConversionOptions>({
     maxDimension: 1280, // Standard HD default
@@ -43,6 +45,7 @@ export const App: React.FC = () => {
     setProgress(null);
     setError(null);
     setCurrentBuffer(null);
+    setIsRasterPanelOpen(false);
   };
 
   const processBuffer = async (
@@ -94,7 +97,142 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleAddIslandSeed = (seed: { x: number; y: number }) => {
+    const prevSeeds = options.bgRemoval?.seeds || [];
+    const newSeeds = [...prevSeeds, seed];
+    const updated: ConversionOptions = {
+      ...options,
+      bgRemoval: {
+        ...options.bgRemoval,
+        enabled: true,
+        seeds: newSeeds,
+      },
+    };
+    setOptions(updated);
+    if (currentBuffer) {
+      processBuffer(
+        currentBuffer.buffer,
+        currentBuffer.mimeType,
+        currentBuffer.name,
+        true,
+        updated
+      );
+    }
+  };
+
+  const handleClearIslandSeeds = () => {
+    const updated: ConversionOptions = {
+      ...options,
+      bgRemoval: {
+        ...options.bgRemoval,
+        enabled: options.bgRemoval?.enabled ?? true,
+        seeds: [],
+      },
+    };
+    setOptions(updated);
+    if (currentBuffer) {
+      processBuffer(
+        currentBuffer.buffer,
+        currentBuffer.mimeType,
+        currentBuffer.name,
+        true,
+        updated
+      );
+    }
+  };
+
   const handleFileSelected = async (selectedFile: File) => {
+    const isSvg = selectedFile.type === 'image/svg+xml' || /\.svg$/i.test(selectedFile.name);
+    if (isSvg) {
+      try {
+        cleanupRasterUrl();
+        setConverting(true);
+        setError(null);
+        setFilename(selectedFile.name);
+
+        // Fast header chunk: extract viewBox and dimensions without scanning 80+ MB of markup
+        const headerChunk = await selectedFile.slice(0, 8192).text();
+        const dims = parseSvgDimensions(headerChunk);
+
+        const isLargeSvg = selectedFile.size > 2 * 1024 * 1024;
+        let pathCount = 1;
+        let text = '';
+
+        if (isLargeSvg) {
+          // For massive SVGs (e.g. 89 MB), estimate path count from byte density to prevent V8 heap stalls
+          pathCount = Math.max(1, Math.round(selectedFile.size / 270));
+          text = await selectedFile.text();
+        } else {
+          text = await selectedFile.text();
+          const pathMatches = text.match(/<(path|rect|circle|polygon|line|polyline)\b/gi);
+          pathCount = pathMatches ? pathMatches.length : 1;
+        }
+
+        const svgBlob = new Blob([text], { type: 'image/svg+xml;charset=utf-8' });
+
+        // Generate fast, downscaled preview texture for instant 60 FPS viewport rendering
+        let previewBlob: Blob | undefined;
+        try {
+          if (typeof OffscreenCanvas !== 'undefined' && typeof Image !== 'undefined') {
+            const svgUrl = URL.createObjectURL(svgBlob);
+            const img = new Image();
+            await new Promise<void>((resolve, reject) => {
+              img.onload = () => resolve();
+              img.onerror = () => reject();
+              img.src = svgUrl;
+            });
+            URL.revokeObjectURL(svgUrl);
+
+            const maxDim = 1920;
+            const scale = Math.min(1, maxDim / Math.max(dims.width, dims.height));
+            const tw = Math.max(1, Math.round(dims.width * scale));
+            const th = Math.max(1, Math.round(dims.height * scale));
+
+            const canvas = new OffscreenCanvas(tw, th);
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, tw, th);
+              try {
+                previewBlob = await canvas.convertToBlob({ type: 'image/webp', quality: 0.95 });
+              } catch {
+                previewBlob = await canvas.convertToBlob({ type: 'image/png' });
+              }
+            }
+          }
+        } catch (prevErr) {
+          console.warn('Could not generate raster preview for SVG:', prevErr);
+        }
+
+        const totalPixels = dims.width * dims.height;
+        const syntheticResult: ConversionResult = {
+          svgText: text,
+          svgBlob,
+          previewBlob,
+          stats: {
+            width: dims.width,
+            height: dims.height,
+            originalPixels: totalPixels,
+            vectorRuns: pathCount,
+            transparentSkipped: 0,
+            compressionRatio: 1.0,
+            durationMs: 0,
+            svgBytes: selectedFile.size,
+            rasterBytes: selectedFile.size,
+            elementCount: pathCount,
+          },
+        };
+
+        setResult(syntheticResult);
+        // Automatically expand the inline DPI rasterizer panel for vector SVG inputs
+        setIsRasterPanelOpen(true);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to read SVG file.');
+      } finally {
+        setConverting(false);
+      }
+      return;
+    }
+
     try {
       const buffer = await selectedFile.arrayBuffer();
       await processBuffer(buffer, selectedFile.type, selectedFile.name, false, options);
@@ -114,7 +252,7 @@ export const App: React.FC = () => {
           <div>
             <h1 className="header-title">Lossless 1:1 Vector Engine</h1>
             <p className="header-subtitle">
-              Pure client-side zero-drift (ΔE = 0) raster to SVG run-length vectorizer
+              Pure client-side zero-drift (ΔE = 0) raster to SVG vectorizer &amp; high-DPI rasterizer
             </p>
           </div>
         </div>
@@ -168,7 +306,7 @@ export const App: React.FC = () => {
                   />
                 </div>
                 <div className="progress-meta">
-                  <span>{progress?.step?.toUpperCase()}</span>
+                  <span>{progress?.step?.toUpperCase() || 'INITIALIZING'}</span>
                   <span>{progress?.progress || 0}%</span>
                 </div>
               </div>
@@ -192,9 +330,29 @@ export const App: React.FC = () => {
 
         {result && !converting && (
           <div className="result-workspace">
-            <Toolbar result={result} filename={filename} onReset={handleReset} />
+            <Toolbar
+              result={result}
+              filename={filename}
+              onReset={handleReset}
+              onToggleRaster={() => setIsRasterPanelOpen((prev) => !prev)}
+              isRasterOpen={isRasterPanelOpen}
+            />
+
+            <DpiRasterPanel
+              svgText={result.svgText}
+              defaultFilename={filename}
+              isExpanded={isRasterPanelOpen}
+              onToggleExpand={() => setIsRasterPanelOpen((prev) => !prev)}
+            />
+
             <StatsDashboard stats={result.stats} />
-            <PreviewPane result={result} rasterUrl={rasterUrl} />
+            <PreviewPane
+              result={result}
+              rasterUrl={rasterUrl}
+              onAddIslandSeed={currentBuffer ? handleAddIslandSeed : undefined}
+              onClearIslandSeeds={currentBuffer ? handleClearIslandSeeds : undefined}
+              islandSeeds={options.bgRemoval?.seeds}
+            />
           </div>
         )}
       </main>
@@ -227,4 +385,5 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
 export default App;

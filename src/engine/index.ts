@@ -25,6 +25,7 @@ export async function convertRasterToSvg(
     resamplingMode: options?.resamplingMode ?? 'smooth',
     merge2D: options?.merge2D ?? true,
     pathGrouping: options?.pathGrouping ?? true,
+    bgRemoval: options?.bgRemoval,
   };
 
   // Attempt Web Worker execution if supported
@@ -47,7 +48,7 @@ export async function convertRasterToSvg(
     onProgress?.({ step, progress, message });
   };
 
-  const { svgText, stats, previewBlob } = await executeConversionPipeline(
+  const { svgText, stats, previewBlob, maskBlob } = await executeConversionPipeline(
     input.buffer,
     input.mimeType,
     rasterBytes,
@@ -57,7 +58,7 @@ export async function convertRasterToSvg(
 
   const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
   report('done', 100, 'Conversion completed.');
-  return { svgText, svgBlob, stats, previewBlob };
+  return { svgText, svgBlob, stats, previewBlob, maskBlob };
 }
 
 function runInWorker(
@@ -90,6 +91,7 @@ function runInWorker(
           svgBlob,
           stats: msg.stats,
           previewBlob: msg.previewBlob,
+          maskBlob: msg.maskBlob,
         });
       } else if (msg.type === 'ERROR') {
         worker.terminate();
@@ -119,3 +121,7 @@ export * from './decoder';
 export * from './rle';
 export * from './svg';
 export * from './pipeline';
+export * from './png-dpi';
+export * from './rasterizer';
+export * from './bg-removal';
+

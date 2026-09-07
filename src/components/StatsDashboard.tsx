@@ -38,7 +38,9 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ stats }) => {
           {stats.elementCount ? stats.elementCount.toLocaleString() : stats.vectorRuns.toLocaleString()}
         </div>
         <div className="stat-hint">
-          {stats.elementCount && stats.elementCount !== stats.vectorRuns
+          {stats.bgRemovedPixels && stats.bgRemovedPixels > 0
+            ? `${stats.bgRemovedPixels.toLocaleString()} background pixels removed (${((stats.bgRemovedPixels / stats.originalPixels) * 100).toFixed(1)}%)`
+            : stats.elementCount && stats.elementCount !== stats.vectorRuns
             ? `${stats.vectorRuns.toLocaleString()} runs consolidated into ${stats.elementCount.toLocaleString()} elements`
             : stats.transparentSkipped > 0
             ? `${stats.transparentSkipped.toLocaleString()} transparent omitted`

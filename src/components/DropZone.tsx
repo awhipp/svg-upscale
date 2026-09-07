@@ -25,16 +25,20 @@ export const DropZone: React.FC<DropZoneProps> = ({
       'image/webp',
       'image/bmp',
       'image/x-ms-bmp',
+      'image/svg+xml',
     ];
-    const isImage = validMimes.includes(file.type) || /\.(png|jpe?g|webp|bmp)$/i.test(file.name);
+    const isSvg = file.type === 'image/svg+xml' || /\.svg$/i.test(file.name);
+    const isImage = validMimes.includes(file.type) || isSvg || /\.(png|jpe?g|webp|bmp)$/i.test(file.name);
 
     if (!isImage) {
-      setErrorMsg(`Unsupported file type (${file.type || 'unknown'}). Please drop a PNG, JPEG, WebP, or BMP.`);
+      setErrorMsg(`Unsupported file type (${file.type || 'unknown'}). Please drop a PNG, JPEG, WebP, BMP, or SVG.`);
       return;
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      setErrorMsg(`File size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds 25 MB limit.`);
+    // Allow up to 120 MB for dense vector SVGs, 25 MB for raster inputs
+    const maxSize = isSvg ? 120 * 1024 * 1024 : MAX_FILE_SIZE;
+    if (file.size > maxSize) {
+      setErrorMsg(`File size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds ${isSvg ? 120 : 25} MB limit.`);
       return;
     }
 
@@ -84,7 +88,7 @@ export const DropZone: React.FC<DropZoneProps> = ({
         <input
           ref={inputRef}
           type="file"
-          accept=".png,.jpg,.jpeg,.webp,.bmp,image/png,image/jpeg,image/webp,image/bmp"
+          accept=".png,.jpg,.jpeg,.webp,.bmp,.svg,image/png,image/jpeg,image/webp,image/bmp,image/svg+xml"
           onChange={handleInputChange}
           style={{ display: 'none' }}
         />
@@ -93,13 +97,13 @@ export const DropZone: React.FC<DropZoneProps> = ({
           <UploadCloud className="dropzone-icon" size={48} />
         </div>
 
-        <h3 className="dropzone-title">Drop your raster image here, or browse</h3>
+        <h3 className="dropzone-title">Drop your raster image or SVG here, or browse</h3>
         <p className="dropzone-subtitle">
-          Supports <strong>PNG</strong> (direct binary 1:1 IDAT), <strong>WebP</strong>,{' '}
-          <strong>JPEG</strong>, and <strong>BMP</strong> up to 25 MB &amp; 8192×8192 px
+          Vectorize rasters to lossless <strong>SVG</strong> (ΔE = 0), or drop an <strong>SVG</strong> to rasterize with custom <strong>DPI (100+ DPI)</strong>
         </p>
 
         <div className="format-badges">
+          <span className="badge svg">SVG (DPI Rasterizer)</span>
           <span className="badge png">PNG (Lossless 1:1)</span>
           <span className="badge">WebP</span>
           <span className="badge">JPEG</span>

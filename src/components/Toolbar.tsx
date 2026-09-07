@@ -1,26 +1,31 @@
 import React, { useState } from 'react';
-import { Download, Copy, Check, RotateCcw } from 'lucide-react';
+import { Download, Copy, Check, RotateCcw, Printer } from 'lucide-react';
 import { ConversionResult } from '../engine/types';
+import { downloadBlob } from '../utils/download';
 
 interface ToolbarProps {
   result: ConversionResult;
   filename: string;
   onReset: () => void;
+  onToggleRaster?: () => void;
+  isRasterOpen?: boolean;
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ result, filename, onReset }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({
+  result,
+  filename,
+  onReset,
+  onToggleRaster,
+  isRasterOpen = false,
+}) => {
   const [copied, setCopied] = useState(false);
 
-  const handleDownload = () => {
-    const url = URL.createObjectURL(result.svgBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    const baseName = filename.replace(/\.[^/.]+$/, '').trim();
-    a.download = `${baseName || 'image'}-vector.svg`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const handleDownloadSvg = async () => {
+    const baseName = filename.replace(/\.[^/.]+$/, '').trim() || 'image';
+    await downloadBlob(result.svgBlob, `${baseName}-vector.svg`, {
+      mimeType: 'image/svg+xml;charset=utf-8',
+      description: 'Lossless Vector SVG Image (*.svg)',
+    });
   };
 
   const handleCopy = async () => {
@@ -39,12 +44,25 @@ export const Toolbar: React.FC<ToolbarProps> = ({ result, filename, onReset }) =
         <button
           type="button"
           className="btn-primary"
-          onClick={handleDownload}
+          onClick={handleDownloadSvg}
           title="Export standalone SVG configured for Illustrator, Figma, Inkscape"
         >
           <Download size={18} />
           <span>Download Lossless SVG</span>
         </button>
+
+        {onToggleRaster && (
+          <button
+            type="button"
+            className={`btn-accent ${isRasterOpen ? 'active' : ''}`}
+            onClick={onToggleRaster}
+            title="Rasterize SVG to PNG with custom DPI minimum (e.g. 100 DPI) and physical resolution metadata"
+          >
+            <Printer size={18} />
+            <span>{isRasterOpen ? 'Hide DPI Rasterizer' : 'Export PNG with DPI'}</span>
+            <span className="badge-chip">100+ DPI</span>
+          </button>
+        )}
 
         <button
           type="button"
@@ -65,7 +83,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ result, filename, onReset }) =
           title="Clear current image and upload a new one"
         >
           <RotateCcw size={16} />
-          <span>Convert Another Image</span>
+          <span>Convert Another</span>
         </button>
       </div>
     </div>

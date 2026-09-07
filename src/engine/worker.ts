@@ -23,6 +23,7 @@ ctx.onmessage = async (e: MessageEvent<WorkerInputMessage>) => {
       svgText: result.svgText,
       stats: result.stats,
       previewBlob: result.previewBlob,
+      maskBlob: result.maskBlob,
     } as WorkerOutputMessage);
   } catch (err: unknown) {
     ctx.postMessage({
