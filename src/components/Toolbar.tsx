@@ -9,6 +9,8 @@ interface ToolbarProps {
   onReset: () => void;
   onToggleRaster?: () => void;
   isRasterOpen?: boolean;
+  activeFlow?: 'vectorize' | 'rasterize';
+  onSwitchFlow?: (flow: 'vectorize' | 'rasterize') => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -17,6 +19,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onReset,
   onToggleRaster,
   isRasterOpen = false,
+  activeFlow = 'vectorize',
+  onSwitchFlow,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -38,6 +42,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     }
   };
 
+  const handleOpenDpi = () => {
+    if (onSwitchFlow) {
+      onSwitchFlow('rasterize');
+    } else if (onToggleRaster) {
+      onToggleRaster();
+    }
+  };
+
   return (
     <div className="toolbar-container">
       <div className="toolbar-left">
@@ -48,19 +60,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           title="Export standalone SVG configured for Illustrator, Figma, Inkscape"
         >
           <Download size={18} />
-          <span>Download Lossless SVG</span>
+          <span>Download SVG</span>
         </button>
 
-        {onToggleRaster && (
+        {activeFlow === 'vectorize' && (onSwitchFlow || onToggleRaster) && (
           <button
             type="button"
             className={`btn-accent ${isRasterOpen ? 'active' : ''}`}
-            onClick={onToggleRaster}
+            onClick={handleOpenDpi}
             title="Rasterize SVG to PNG with custom DPI minimum (e.g. 100 DPI) and physical resolution metadata"
           >
             <Printer size={18} />
-            <span>{isRasterOpen ? 'Hide DPI Rasterizer' : 'Export PNG with DPI'}</span>
-            <span className="badge-chip">100+ DPI</span>
+            <span>Export as High-DPI PNG &rarr;</span>
           </button>
         )}
 

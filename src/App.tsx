@@ -5,11 +5,23 @@ import { StatsDashboard } from './components/StatsDashboard';
 import { Toolbar } from './components/Toolbar';
 import { OptimizationSettings } from './components/OptimizationSettings';
 import { DpiRasterPanel } from './components/DpiRasterPanel';
+import { HowItWorksModal } from './components/HowItWorksModal';
 import { convertRasterToSvg, parseSvgDimensions } from './engine';
 import { ConversionOptions, ConversionProgress, ConversionResult } from './engine/types';
-import { ShieldCheck, Sparkles, AlertCircle, Loader2 } from 'lucide-react';
+import {
+  ShieldCheck,
+  Sparkles,
+  AlertCircle,
+  Loader2,
+  Printer,
+  Info,
+  SlidersHorizontal,
+} from 'lucide-react';
+
+export type AppFlow = 'vectorize' | 'rasterize';
 
 export const App: React.FC = () => {
+  const [activeFlow, setActiveFlow] = useState<AppFlow>('vectorize');
   const [filename, setFilename] = useState<string>('image.png');
   const [rasterUrl, setRasterUrl] = useState<string | null>(null);
   const [converting, setConverting] = useState<boolean>(false);
@@ -17,6 +29,7 @@ export const App: React.FC = () => {
   const [result, setResult] = useState<ConversionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRasterPanelOpen, setIsRasterPanelOpen] = useState<boolean>(false);
+  const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
 
   const [options, setOptions] = useState<ConversionOptions>({
     maxDimension: 1280, // Standard HD default
@@ -149,6 +162,7 @@ export const App: React.FC = () => {
         setConverting(true);
         setError(null);
         setFilename(selectedFile.name);
+        setActiveFlow('rasterize');
 
         // Fast header chunk: extract viewBox and dimensions without scanning 80+ MB of markup
         const headerChunk = await selectedFile.slice(0, 8192).text();
@@ -159,7 +173,6 @@ export const App: React.FC = () => {
         let text = '';
 
         if (isLargeSvg) {
-          // For massive SVGs (e.g. 89 MB), estimate path count from byte density to prevent V8 heap stalls
           pathCount = Math.max(1, Math.round(selectedFile.size / 270));
           text = await selectedFile.text();
         } else {
@@ -223,7 +236,6 @@ export const App: React.FC = () => {
         };
 
         setResult(syntheticResult);
-        // Automatically expand the inline DPI rasterizer panel for vector SVG inputs
         setIsRasterPanelOpen(true);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to read SVG file.');
@@ -234,6 +246,7 @@ export const App: React.FC = () => {
     }
 
     try {
+      setActiveFlow('vectorize');
       const buffer = await selectedFile.arrayBuffer();
       await processBuffer(buffer, selectedFile.type, selectedFile.name, false, options);
     } catch (err: unknown) {
@@ -242,17 +255,28 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleSwitchFlow = (flow: AppFlow) => {
+    setActiveFlow(flow);
+    if (flow === 'rasterize') {
+      setIsRasterPanelOpen(true);
+    }
+  };
+
   return (
     <div className="app-container">
+      {/* Centralized Technical & Architecture Information Modal */}
+      <HowItWorksModal isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
+
+      {/* Main Navigation Header */}
       <header className="app-header">
         <div className="header-brand">
           <div className="logo-badge">
             <Sparkles size={20} className="text-sky" />
           </div>
           <div>
-            <h1 className="header-title">Lossless 1:1 Vector Engine</h1>
+            <h1 className="header-title">Vector &amp; High-DPI Studio</h1>
             <p className="header-subtitle">
-              Pure client-side zero-drift (ΔE = 0) raster to SVG vectorizer &amp; high-DPI rasterizer
+              Convert images to scalable SVGs &amp; export print-ready, high-DPI PNGs — 100% in your browser
             </p>
           </div>
         </div>
@@ -261,11 +285,23 @@ export const App: React.FC = () => {
           <div className="header-badges">
             <span className="pill-badge">
               <ShieldCheck size={14} className="text-emerald" />
-              <span>Pure Client-Side</span>
+              <span>Private &amp; Client-Side</span>
             </span>
-            <span className="pill-badge">ΔE = 0 Parity Available</span>
-            <span className="pill-badge">Adaptive 2D RLE Meshing</span>
+            <span className="pill-badge">
+              <Sparkles size={14} className="text-sky" />
+              <span>Exact Color Match</span>
+            </span>
           </div>
+
+          <button
+            type="button"
+            className="btn-info-header"
+            onClick={() => setIsInfoOpen(true)}
+            title="Read technical architecture, color parity details, and specification"
+          >
+            <Info size={15} />
+            <span>How It Works</span>
+          </button>
 
           <a
             href="https://github.com/awhipp/svg-upscale"
@@ -282,6 +318,42 @@ export const App: React.FC = () => {
           </a>
         </div>
       </header>
+
+      {/* Guided Flow Selector */}
+      <div className="flow-nav-container">
+        <nav className="flow-tabs-nav" aria-label="Workflow Selection">
+          <button
+            type="button"
+            className={`flow-tab ${activeFlow === 'vectorize' ? 'active' : ''}`}
+            onClick={() => handleSwitchFlow('vectorize')}
+          >
+            <div className="flow-tab-icon-wrap">
+              <Sparkles size={18} />
+            </div>
+            <div className="flow-tab-content">
+              <span className="flow-tab-title">1. Vectorize Image to SVG</span>
+              <span className="flow-tab-desc">PNG, JPEG, WebP &rarr; Lossless SVG</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className={`flow-tab ${activeFlow === 'rasterize' ? 'active' : ''}`}
+            onClick={() => handleSwitchFlow('rasterize')}
+          >
+            <div className="flow-tab-icon-wrap">
+              <Printer size={18} />
+            </div>
+            <div className="flow-tab-content">
+              <span className="flow-tab-title">2. High-DPI PNG Rasterizer</span>
+              <span className="flow-tab-desc">SVG &rarr; 100+ DPI Print-Ready PNG</span>
+            </div>
+            {result && activeFlow === 'vectorize' && (
+              <span className="flow-tab-badge">SVG Ready</span>
+            )}
+          </button>
+        </nav>
+      </div>
 
       <main className="app-main">
         {error && (
@@ -314,45 +386,105 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        <OptimizationSettings
-          options={options}
-          onChange={setOptions}
-          onApply={result ? handleReconvert : undefined}
-          isConverting={converting}
-        />
+        {/* FLOW 1: VECTORIZE IMAGE TO SVG */}
+        {activeFlow === 'vectorize' && (
+          <div className="flow-workspace">
+            {/* Contextual Vectorization Settings - Only shown in Vectorize flow */}
+            <OptimizationSettings
+              options={options}
+              onChange={setOptions}
+              onApply={result ? handleReconvert : undefined}
+              isConverting={converting}
+            />
 
-        {!result && !converting && (
-          <DropZone
-            onFileSelected={handleFileSelected}
-            disabled={converting}
-          />
+            {!result && !converting && (
+              <DropZone
+                onFileSelected={handleFileSelected}
+                disabled={converting}
+                activeFlow="vectorize"
+              />
+            )}
+
+            {result && !converting && (
+              <div className="result-workspace">
+                <Toolbar
+                  result={result}
+                  filename={filename}
+                  onReset={handleReset}
+                  activeFlow="vectorize"
+                  onSwitchFlow={handleSwitchFlow}
+                />
+
+                <StatsDashboard stats={result.stats} />
+                <PreviewPane
+                  result={result}
+                  rasterUrl={rasterUrl}
+                  onAddIslandSeed={currentBuffer ? handleAddIslandSeed : undefined}
+                  onClearIslandSeeds={currentBuffer ? handleClearIslandSeeds : undefined}
+                  islandSeeds={options.bgRemoval?.seeds}
+                />
+              </div>
+            )}
+          </div>
         )}
 
-        {result && !converting && (
-          <div className="result-workspace">
-            <Toolbar
-              result={result}
-              filename={filename}
-              onReset={handleReset}
-              onToggleRaster={() => setIsRasterPanelOpen((prev) => !prev)}
-              isRasterOpen={isRasterPanelOpen}
-            />
+        {/* FLOW 2: HIGH-DPI PNG RASTERIZER */}
+        {activeFlow === 'rasterize' && (
+          <div className="flow-workspace">
+            {!result && !converting && (
+              <DropZone
+                onFileSelected={handleFileSelected}
+                disabled={converting}
+                activeFlow="rasterize"
+              />
+            )}
 
-            <DpiRasterPanel
-              svgText={result.svgText}
-              defaultFilename={filename}
-              isExpanded={isRasterPanelOpen}
-              onToggleExpand={() => setIsRasterPanelOpen((prev) => !prev)}
-            />
+            {result && !converting && (
+              <div className="result-workspace">
+                <div className="flow-notice-banner">
+                  <div className="flow-notice-info">
+                    <Printer size={16} className="text-sky" />
+                    <span>
+                      Rasterizing <strong>{filename}</strong>. Output PNG will contain an embedded physical resolution (pHYs) chunk.
+                    </span>
+                  </div>
+                  {rasterUrl && (
+                    <button
+                      type="button"
+                      className="btn-ghost-sm"
+                      onClick={() => setActiveFlow('vectorize')}
+                    >
+                      <SlidersHorizontal size={14} />
+                      <span>Back to Vector Settings</span>
+                    </button>
+                  )}
+                </div>
 
-            <StatsDashboard stats={result.stats} />
-            <PreviewPane
-              result={result}
-              rasterUrl={rasterUrl}
-              onAddIslandSeed={currentBuffer ? handleAddIslandSeed : undefined}
-              onClearIslandSeeds={currentBuffer ? handleClearIslandSeeds : undefined}
-              islandSeeds={options.bgRemoval?.seeds}
-            />
+                <DpiRasterPanel
+                  svgText={result.svgText}
+                  defaultFilename={filename}
+                  isExpanded={isRasterPanelOpen}
+                  onToggleExpand={() => setIsRasterPanelOpen((prev) => !prev)}
+                />
+
+                <Toolbar
+                  result={result}
+                  filename={filename}
+                  onReset={handleReset}
+                  activeFlow="rasterize"
+                  onSwitchFlow={handleSwitchFlow}
+                />
+
+                <StatsDashboard stats={result.stats} />
+                <PreviewPane
+                  result={result}
+                  rasterUrl={rasterUrl}
+                  onAddIslandSeed={currentBuffer ? handleAddIslandSeed : undefined}
+                  onClearIslandSeeds={currentBuffer ? handleClearIslandSeeds : undefined}
+                  islandSeeds={options.bgRemoval?.seeds}
+                />
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -372,13 +504,21 @@ export const App: React.FC = () => {
               </svg>
               <span>awhipp/svg-upscale</span>
             </a>
-            <span className="footer-dot">•</span>
+            <span className="footer-dot">&bull;</span>
+            <button
+              type="button"
+              className="footer-info-btn"
+              onClick={() => setIsInfoOpen(true)}
+            >
+              How It Works
+            </button>
+            <span className="footer-dot">&bull;</span>
             <a href="./SPEC.md" target="_blank" rel="noreferrer">
               SPEC.md
             </a>
           </div>
           <p className="footer-note">
-            Direct binary PNG extraction bypasses host GPU gamut mapping &amp; alpha premultiplication. Zero color drift (ΔE = 0).
+            All vector processing and high-DPI rasterization execute entirely on your device. Zero server uploads.
           </p>
         </div>
       </footer>

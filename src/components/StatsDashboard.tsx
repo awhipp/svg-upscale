@@ -51,20 +51,20 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ stats }) => {
       <div className="stat-card">
         <div className="stat-header">
           <Zap className="stat-icon text-emerald" size={18} />
-          <span className="stat-label">Vector Compaction</span>
+          <span className="stat-label">Geometric Optimization</span>
         </div>
         <div className="stat-value">{stats.compressionRatio}%</div>
-        <div className="stat-hint">Exact 2D greedy meshing and run aggregation</div>
+        <div className="stat-hint">Contiguous rectangle consolidation</div>
       </div>
 
       <div className="stat-card">
         <div className="stat-header">
           <Clock className="stat-icon text-amber" size={18} />
-          <span className="stat-label">Engine Latency</span>
+          <span className="stat-label">Processing Time</span>
         </div>
         <div className="stat-value">{stats.durationMs} ms</div>
         <div className="stat-hint">
-          {stats.durationMs < 250 ? '✓ Exceeds TR-3 performance target' : 'Completed'}
+          In-browser Web Worker
         </div>
       </div>
 
@@ -80,10 +80,10 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({ stats }) => {
       <div className="stat-card">
         <div className="stat-header">
           <EyeOff className="stat-icon text-sky" size={18} />
-          <span className="stat-label">Color Fidelity</span>
+          <span className="stat-label">Color Parity</span>
         </div>
-        <div className="stat-value">ΔE = 0</div>
-        <div className="stat-hint">Strict bit-for-bit lossless parity</div>
+        <div className="stat-value">Exact Match</div>
+        <div className="stat-hint">Zero gamut drift (&Delta;E = 0)</div>
       </div>
     </div>
   );

@@ -167,6 +167,14 @@ export const DpiRasterPanel: React.FC<DpiRasterPanelProps> = ({
               <Printer size={13} />
               <span>300 DPI</span>
             </button>
+            <button
+              type="button"
+              className={`preset-btn ${dpi === 600 ? 'active' : ''}`}
+              onClick={() => handleSelectDpiPreset(600)}
+              title="600 DPI - Ultra Fine Art & Vector Line Printing"
+            >
+              <span>600 DPI</span>
+            </button>
           </div>
 
           {onToggleExpand && (
@@ -254,7 +262,6 @@ export const DpiRasterPanel: React.FC<DpiRasterPanelProps> = ({
                 <div className="mode-card-header">
                   <Sparkles size={16} className="text-sky" />
                   <span className="mode-title">Native 1:1 Pixel Preservation</span>
-                  <span className="mode-badge">Recommended</span>
                 </div>
                 <p className="mode-desc">
                   Preserves the exact {nativeDims.width} × {nativeDims.height} px grid. Tagged with {dpi} DPI, yielding a {calculated.printWidthInches}" × {calculated.printHeightInches}" print.

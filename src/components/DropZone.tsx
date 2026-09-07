@@ -5,11 +5,13 @@ import { MAX_FILE_SIZE } from '../engine/decoder';
 interface DropZoneProps {
   onFileSelected: (file: File) => void;
   disabled?: boolean;
+  activeFlow?: 'vectorize' | 'rasterize';
 }
 
 export const DropZone: React.FC<DropZoneProps> = ({
   onFileSelected,
   disabled = false,
+  activeFlow = 'vectorize',
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -74,6 +76,8 @@ export const DropZone: React.FC<DropZoneProps> = ({
     }
   };
 
+  const isVectorize = activeFlow === 'vectorize';
+
   return (
     <div className="dropzone-container">
       <div
@@ -88,7 +92,11 @@ export const DropZone: React.FC<DropZoneProps> = ({
         <input
           ref={inputRef}
           type="file"
-          accept=".png,.jpg,.jpeg,.webp,.bmp,.svg,image/png,image/jpeg,image/webp,image/bmp,image/svg+xml"
+          accept={
+            isVectorize
+              ? '.png,.jpg,.jpeg,.webp,.bmp,image/png,image/jpeg,image/webp,image/bmp'
+              : '.svg,image/svg+xml'
+          }
           onChange={handleInputChange}
           style={{ display: 'none' }}
         />
@@ -97,17 +105,33 @@ export const DropZone: React.FC<DropZoneProps> = ({
           <UploadCloud className="dropzone-icon" size={48} />
         </div>
 
-        <h3 className="dropzone-title">Drop your raster image or SVG here, or browse</h3>
+        <h3 className="dropzone-title">
+          {isVectorize
+            ? 'Drop your raster image here, or browse'
+            : 'Drop your SVG file here, or browse'}
+        </h3>
         <p className="dropzone-subtitle">
-          Vectorize rasters to lossless <strong>SVG</strong> (ΔE = 0), or drop an <strong>SVG</strong> to rasterize with custom <strong>DPI (100+ DPI)</strong>
+          {isVectorize
+            ? 'Convert PNG, JPEG, WebP, or BMP into crisp, scalable vector SVG paths'
+            : 'Rasterize SVG to high-resolution PNG with certified DPI metadata for print & preflight'}
         </p>
 
         <div className="format-badges">
-          <span className="badge svg">SVG (DPI Rasterizer)</span>
-          <span className="badge png">PNG (Lossless 1:1)</span>
-          <span className="badge">WebP</span>
-          <span className="badge">JPEG</span>
-          <span className="badge">BMP</span>
+          {isVectorize ? (
+            <>
+              <span className="badge png">PNG (Lossless 1:1)</span>
+              <span className="badge">WebP</span>
+              <span className="badge">JPEG</span>
+              <span className="badge">BMP</span>
+              <span className="badge hint">Drop SVG to auto-switch to DPI mode</span>
+            </>
+          ) : (
+            <>
+              <span className="badge svg">SVG Vector Graphics</span>
+              <span className="badge hint">Exports at 100, 150, 300+ DPI</span>
+              <span className="badge hint">Drop image to auto-switch to Vectorizer</span>
+            </>
+          )}
         </div>
       </div>
 

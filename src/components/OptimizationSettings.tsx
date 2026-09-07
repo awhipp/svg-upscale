@@ -49,13 +49,13 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
       <div className="optimization-header">
         <div className="optimization-title-group">
           <Sliders size={18} className="text-sky" />
-          <span className="optimization-heading">Quality &amp; Resolution Pre-Scaler</span>
+          <span className="optimization-heading">Vectorization Options</span>
           <span className="optimization-sub">
-            {matchingTier ? matchingTier.label : currentDim === 0 ? 'Original Resolution' : `Custom ${currentDim}px`}
+            {matchingTier ? matchingTier.label : currentDim === 0 ? 'Original Resolution (Unscaled)' : `Custom ${currentDim}px`}
             {' • '}
-            <span className="text-emerald">Strict Lossless (ΔE = 0)</span>
+            <span className="text-emerald">Bit-Accurate Colors</span>
             {' • '}
-            {options.resamplingMode === 'pixelated' ? 'Crisp Nearest-Neighbor' : 'Smooth Bilinear'}
+            {options.resamplingMode === 'pixelated' ? 'Crisp (Nearest-Neighbor)' : 'Smooth (Bilinear)'}
             {options.bgRemoval?.enabled && (
               <>
                 {' • '}
@@ -103,7 +103,7 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
             onClick={() => setExpanded(!expanded)}
             title="Toggle fine-grained quality tiers and options"
           >
-            <span>{expanded ? 'Fewer Options' : 'All Quality Tiers & Settings'}</span>
+            <span>{expanded ? 'Fewer Options' : 'Tune Quality, Transparency & Advanced'}</span>
             {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         </div>
@@ -151,9 +151,6 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
                 >
                   <div className="tier-card-header">
                     <span className="tier-title">{tier.label}</span>
-                    {tier.dimension === 1280 && (
-                      <span className="badge-recommended">Recommended</span>
-                    )}
                   </div>
                   <p className="tier-desc">{tier.description}</p>
                 </button>
@@ -324,8 +321,8 @@ export const OptimizationSettings: React.FC<OptimizationSettingsProps> = ({
                       {(options.bgRemoval.tolerance ?? 20) <= 10
                         ? 'Strict (flat PNGs with no compression artifacts)'
                         : (options.bgRemoval.tolerance ?? 20) <= 30
-                        ? 'Balanced (optimal for absorbing JPEG ringing and DCT noise)'
-                        : 'Wide (handles subtle gradients or noisy photographic backdrops)'}
+                          ? 'Balanced (optimal for absorbing JPEG ringing and DCT noise)'
+                          : 'Wide (handles subtle gradients or noisy photographic backdrops)'}
                     </span>
                   </div>
                   <div className="tolerance-control-wrap">
